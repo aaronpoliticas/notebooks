@@ -130,8 +130,56 @@
             ),
             Folder: ({size=24, className}) => (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            ),
+            UploadCloud: ({size=24, className}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"></path><polyline points="16 16 12 12 8 16"></polyline></svg>
+            ),
+            Settings: ({size=24, className}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            ),
+            Plus: ({size=24, className}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            ),
+            Trash: ({size=24, className}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            ),
+            Check: ({size=24, className}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20 6 9 17 4 12"></polyline></svg>
             )
         };
+
+        // --- FUNCIONES GITHUB API ---
+        const github = {
+            async getFile(token, owner, repo, path) {
+                const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+                    headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+                });
+                if (!res.ok) throw new Error(res.status === 404 ? 'Archivo no encontrado' : 'Error en GitHub API');
+                return res.json();
+            },
+            async uploadFile(token, owner, repo, path, contentBase64, sha = null) {
+                const body = {
+                    message: `Actualización desde App: ${path}`,
+                    content: contentBase64,
+                };
+                if (sha) body.sha = sha;
+
+                const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!res.ok) throw new Error('Error subiendo archivo');
+                return res.json();
+            }
+        };
+
+        const fileToBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result.split(',')[1]); // GitHub necesita solo la parte Base64 sin el header data:image...
+            reader.onerror = error => reject(error);
+        });
 
         // --- COMPONENTE PRINCIPAL ---
         function App() {
@@ -154,8 +202,19 @@
             
             const audioRef = useRef(null);
 
+            // Estados de Admin / Subida
+            const [ghConfig, setGhConfig] = useState({ token: '', owner: '', repo: '' });
+            const [uploadForm, setUploadForm] = useState({
+                category: '', title: '', description: '', author: '', cover: null, audios: []
+            });
+            const [uploadStatus, setUploadStatus] = useState(null); // 'uploading', 'success', 'error'
+
             // Carga Inicial
             useEffect(() => {
+                // Cargar config de localStorage
+                const savedConfig = localStorage.getItem('gh_config');
+                if (savedConfig) setGhConfig(JSON.parse(savedConfig));
+
                 fetch(API_URL)
                     .then(res => {
                         if (!res.ok) throw new Error("No se encontró database.json");
@@ -171,6 +230,12 @@
                         setLoading(false);
                     });
             }, []);
+
+            // Guardar config
+            const saveConfig = () => {
+                localStorage.setItem('gh_config', JSON.stringify(ghConfig));
+                alert("Configuración guardada en tu navegador.");
+            };
 
             // Lógica de Audio
             useEffect(() => {
@@ -237,6 +302,94 @@
                 playTrack(activeTopic.chapters[nextIdx], activeTopic);
             };
 
+            // --- LÓGICA DE SUBIDA (ADMIN) ---
+            const handleAudioFiles = (files) => {
+                const newFiles = Array.from(files).map(f => ({ file: f, name: f.name.replace(/\.[^/.]+$/, "") }));
+                setUploadForm(prev => ({ ...prev, audios: [...prev.audios, ...newFiles] }));
+            };
+
+            const handleUpload = async () => {
+                if (!ghConfig.token || !ghConfig.owner || !ghConfig.repo) return alert("Configura primero tus credenciales de GitHub.");
+                if (!uploadForm.title || uploadForm.audios.length === 0) return alert("Falta título o audios.");
+
+                setUploadStatus('uploading');
+                try {
+                    // 1. Obtener database.json actual para tener el SHA
+                    const dbData = await github.getFile(ghConfig.token, ghConfig.owner, ghConfig.repo, 'database.json');
+                    const currentDb = JSON.parse(atob(dbData.content));
+                    
+                    // 2. Preparar Rutas
+                    const safeTitle = uploadForm.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                    const basePath = `audios/${uploadForm.title}`; // Usamos título real para la carpeta para que sea legible
+                    
+                    // 3. Subir Imagen (si hay)
+                    let coverPath = null;
+                    if (uploadForm.cover) {
+                        const coverBase64 = await fileToBase64(uploadForm.cover);
+                        const ext = uploadForm.cover.name.split('.').pop();
+                        coverPath = `${basePath}/cover.${ext}`;
+                        await github.uploadFile(ghConfig.token, ghConfig.owner, ghConfig.repo, coverPath, coverBase64);
+                    }
+
+                    // 4. Subir Audios
+                    const chapters = [];
+                    for (let i = 0; i < uploadForm.audios.length; i++) {
+                        const audioItem = uploadForm.audios[i];
+                        const audioBase64 = await fileToBase64(audioItem.file);
+                        const audioPath = `${basePath}/${audioItem.file.name}`;
+                        await github.uploadFile(ghConfig.token, ghConfig.owner, ghConfig.repo, audioPath, audioBase64);
+                        
+                        chapters.push({
+                            id: `ch_${Date.now()}_${i}`,
+                            title: audioItem.name,
+                            url: audioPath // Ruta relativa
+                        });
+                    }
+
+                    // 5. Actualizar JSON Localmente
+                    const newTopic = {
+                        id: `t_${Date.now()}`,
+                        title: uploadForm.title,
+                        author: uploadForm.author || "Desconocido",
+                        description: uploadForm.description || "",
+                        coverImage: coverPath,
+                        coverColor: "from-zinc-700 to-zinc-900", // Default
+                        chapters: chapters
+                    };
+
+                    let category = currentDb.find(c => c.name === uploadForm.category);
+                    if (!category) {
+                        category = {
+                            id: `c_${Date.now()}`,
+                            name: uploadForm.category || "General",
+                            topics: []
+                        };
+                        currentDb.push(category);
+                    } else {
+                        if(!category.topics) category.topics = [];
+                    }
+                    // Buscamos la referencia de la categoria dentro del array actualizado
+                    const catIndex = currentDb.findIndex(c => c.id === category.id);
+                    currentDb[catIndex].topics.push(newTopic);
+
+                    // 6. Subir database.json actualizado
+                    // btoa soporta caracteres latinos solo si se escapan primero
+                    const jsonContent = btoa(unescape(encodeURIComponent(JSON.stringify(currentDb, null, 2))));
+                    await github.uploadFile(ghConfig.token, ghConfig.owner, ghConfig.repo, 'database.json', jsonContent, dbData.sha);
+
+                    setUploadStatus('success');
+                    alert("¡Contenido subido exitosamente! Espera unos minutos a que GitHub Pages se actualice.");
+                    setDb(currentDb); // Actualizar vista local
+                    setView('home');
+                    setUploadForm({ category: '', title: '', description: '', author: '', cover: null, audios: [] });
+
+                } catch (e) {
+                    console.error(e);
+                    setUploadStatus('error');
+                    alert(`Error: ${e.message}`);
+                }
+            };
+
             // Renderizado Condicional
             if (loading) return (
                 <div className="h-screen flex flex-col items-center justify-center bg-dark-900 text-celeste-400 gap-4">
@@ -264,13 +417,13 @@
                         {/* SIDEBAR */}
                         <aside className="w-64 bg-dark-900/50 backdrop-blur-xl border-r border-white/5 hidden md:flex flex-col p-4 gap-6">
                             <div className="space-y-4">
-                                <div onClick={() => {setView('home'); setMobileMenuOpen(false);}} className="flex items-center gap-4 text-zinc-400 hover:text-white transition-colors cursor-pointer group">
+                                <div onClick={() => {setView('home'); setMobileMenuOpen(false);}} className={`flex items-center gap-4 cursor-pointer transition-colors group ${view === 'home' ? 'text-white' : 'text-zinc-400 hover:text-white'}`}>
                                     <Icons.Home className="group-hover:text-celeste-400 transition-colors" />
                                     <span className="font-semibold">Inicio</span>
                                 </div>
-                                <div className="flex items-center gap-4 text-zinc-400 hover:text-white transition-colors cursor-pointer group">
-                                    <Icons.Search className="group-hover:text-celeste-400 transition-colors" />
-                                    <span className="font-semibold">Buscar</span>
+                                <div onClick={() => {setView('admin'); setMobileMenuOpen(false);}} className={`flex items-center gap-4 cursor-pointer transition-colors group ${view === 'admin' ? 'text-white' : 'text-zinc-400 hover:text-white'}`}>
+                                    <Icons.UploadCloud className="group-hover:text-celeste-400 transition-colors" />
+                                    <span className="font-semibold">Subir</span>
                                 </div>
                             </div>
                             
@@ -290,7 +443,7 @@
                                                 >
                                                     <div className="w-8 h-8 rounded bg-gradient-to-br from-zinc-700 to-zinc-800 flex items-center justify-center flex-shrink-0 shadow-lg">
                                                         {topic.coverImage ? 
-                                                            <img src={topic.coverImage} className="w-full h-full object-cover rounded opacity-80" /> :
+                                                            <img src={topic.coverImage} className="w-full h-full object-cover rounded opacity-80" onError={(e) => e.target.style.display='none'} /> :
                                                             <Icons.MusicNote size={14} className="text-zinc-500" />
                                                         }
                                                     </div>
@@ -305,144 +458,224 @@
 
                         {/* CONTENIDO CENTRAL */}
                         <main className="flex-1 bg-gradient-to-b from-dark-800 to-dark-900 overflow-y-auto relative scrollbar-thin">
-                            {/* Header Movil */}
-                            <div className="md:hidden sticky top-0 z-30 bg-dark-900/80 backdrop-blur-md p-4 flex justify-between items-center border-b border-white/5">
-                                <div onClick={() => setView('home')} className="font-bold flex items-center gap-2 text-white">
-                                    {view === 'topic' && <Icons.ChevronLeft />} E-Learning
-                                </div>
-                                <Icons.Menu className="text-white" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} />
-                            </div>
-
-                            {/* Menu Movil Overlay */}
-                            {mobileMenuOpen && (
-                                <div className="absolute inset-0 z-40 bg-dark-900 p-6 flex flex-col gap-6 animate-fade-in">
-                                    <button onClick={() => {setView('home'); setMobileMenuOpen(false);}} className="text-xl font-bold flex gap-4 text-white"><Icons.Home /> Inicio</button>
-                                    <div className="h-px bg-white/10 w-full"></div>
-                                    <div className="overflow-y-auto flex-1 space-y-4">
-                                        {allTopics.map(topic => (
-                                            <div key={topic.id} onClick={() => { setActiveTopic(topic); setView('topic'); setMobileMenuOpen(false); }} className="py-2 text-lg text-zinc-400 hover:text-celeste-400">
-                                                {topic.title}
-                                            </div>
-                                        ))}
+                            
+                            {/* VISTA: ADMIN / SUBIDA */}
+                            {view === 'admin' && (
+                                <div className="p-6 md:p-10 pb-36 max-w-3xl mx-auto animate-fade-in">
+                                    <h1 className="text-3xl font-bold mb-8 text-white">Administración</h1>
+                                    
+                                    {/* Configuración GitHub */}
+                                    <div className="bg-white/5 p-6 rounded-xl border border-white/10 mb-8">
+                                        <div className="flex items-center gap-2 mb-4 text-celeste-400 font-bold uppercase text-xs tracking-wider">
+                                            <Icons.Settings size={16}/> Configuración del Repositorio
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <input type="text" placeholder="Usuario GitHub (Owner)" value={ghConfig.owner} onChange={e => setGhConfig({...ghConfig, owner: e.target.value})} className="bg-dark-900 border border-zinc-700 rounded p-2 text-sm focus:border-celeste-400 outline-none" />
+                                            <input type="text" placeholder="Nombre Repositorio" value={ghConfig.repo} onChange={e => setGhConfig({...ghConfig, repo: e.target.value})} className="bg-dark-900 border border-zinc-700 rounded p-2 text-sm focus:border-celeste-400 outline-none" />
+                                            <input type="password" placeholder="Personal Access Token (PAT)" value={ghConfig.token} onChange={e => setGhConfig({...ghConfig, token: e.target.value})} className="bg-dark-900 border border-zinc-700 rounded p-2 text-sm focus:border-celeste-400 outline-none md:col-span-2" />
+                                        </div>
+                                        <button onClick={saveConfig} className="mt-4 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-xs font-bold uppercase tracking-wider transition-colors">Guardar Credenciales</button>
                                     </div>
-                                    <button onClick={() => setMobileMenuOpen(false)} className="py-4 text-center text-zinc-600 uppercase text-xs font-bold tracking-widest">Cerrar</button>
+
+                                    {/* Formulario de Subida */}
+                                    <div className="bg-white/5 p-6 rounded-xl border border-white/10">
+                                        <div className="flex items-center gap-2 mb-6 text-celeste-400 font-bold uppercase text-xs tracking-wider">
+                                            <Icons.UploadCloud size={16}/> Nuevo Contenido
+                                        </div>
+                                        
+                                        <div className="space-y-4">
+                                            {/* Datos Básicos */}
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs text-zinc-500 mb-1">Categoría</label>
+                                                    <input type="text" list="categories" placeholder="Ej. Economía" value={uploadForm.category} onChange={e => setUploadForm({...uploadForm, category: e.target.value})} className="w-full bg-dark-900 border border-zinc-700 rounded p-2 text-white focus:border-celeste-400 outline-none" />
+                                                    <datalist id="categories">
+                                                        {db.map(c => <option key={c.id} value={c.name} />)}
+                                                    </datalist>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-zinc-500 mb-1">Título del Tema</label>
+                                                    <input type="text" placeholder="Ej. Historia de Roma" value={uploadForm.title} onChange={e => setUploadForm({...uploadForm, title: e.target.value})} className="w-full bg-dark-900 border border-zinc-700 rounded p-2 text-white focus:border-celeste-400 outline-none" />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs text-zinc-500 mb-1">Autor</label>
+                                                <input type="text" placeholder="Nombre del autor" value={uploadForm.author} onChange={e => setUploadForm({...uploadForm, author: e.target.value})} className="w-full bg-dark-900 border border-zinc-700 rounded p-2 text-white focus:border-celeste-400 outline-none" />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs text-zinc-500 mb-1">Descripción</label>
+                                                <textarea rows="2" placeholder="Breve descripción..." value={uploadForm.description} onChange={e => setUploadForm({...uploadForm, description: e.target.value})} className="w-full bg-dark-900 border border-zinc-700 rounded p-2 text-white focus:border-celeste-400 outline-none"></textarea>
+                                            </div>
+
+                                            {/* Imagen */}
+                                            <div>
+                                                <label className="block text-xs text-zinc-500 mb-1">Imagen de Portada</label>
+                                                <input type="file" accept="image/*" onChange={e => setUploadForm({...uploadForm, cover: e.target.files[0]})} className="block w-full text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-celeste-400 hover:file:bg-zinc-700" />
+                                            </div>
+
+                                            {/* Audios */}
+                                            <div className="border-t border-white/10 pt-4">
+                                                <label className="block text-xs text-zinc-500 mb-2">Archivos de Audio (Selecciona varios)</label>
+                                                <input type="file" accept="audio/*" multiple onChange={e => handleAudioFiles(e.target.files)} className="hidden" id="audio-input" />
+                                                <label htmlFor="audio-input" className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm text-white transition-colors border border-white/10">
+                                                    <Icons.Plus size={16} /> Seleccionar Archivos
+                                                </label>
+
+                                                {/* Lista previa */}
+                                                <div className="mt-4 space-y-2">
+                                                    {uploadForm.audios.map((audio, idx) => (
+                                                        <div key={idx} className="flex items-center justify-between bg-dark-900 p-2 rounded border border-white/5">
+                                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                                <Icons.MusicNote size={14} className="text-zinc-500 flex-shrink-0" />
+                                                                <input 
+                                                                    type="text" 
+                                                                    value={audio.name} 
+                                                                    onChange={(e) => {
+                                                                        const newAudios = [...uploadForm.audios];
+                                                                        newAudios[idx].name = e.target.value;
+                                                                        setUploadForm({...uploadForm, audios: newAudios});
+                                                                    }}
+                                                                    className="bg-transparent text-sm text-zinc-300 outline-none w-full"
+                                                                />
+                                                            </div>
+                                                            <Icons.Trash 
+                                                                size={14} 
+                                                                className="text-red-500 cursor-pointer hover:text-red-400" 
+                                                                onClick={() => {
+                                                                    const newAudios = uploadForm.audios.filter((_, i) => i !== idx);
+                                                                    setUploadForm({...uploadForm, audios: newAudios});
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Botón Final */}
+                                            <div className="pt-6">
+                                                <button 
+                                                    onClick={handleUpload} 
+                                                    disabled={uploadStatus === 'uploading'}
+                                                    className={`w-full py-4 rounded-lg font-bold text-dark-900 transition-all ${uploadStatus === 'uploading' ? 'bg-zinc-600 cursor-wait' : 'bg-celeste-400 hover:bg-celeste-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.3)]'}`}
+                                                >
+                                                    {uploadStatus === 'uploading' ? 'Subiendo archivos...' : 'PUBLICAR CONTENIDO'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
-                            <div className="p-6 md:p-10 pb-36 max-w-7xl mx-auto">
-                                {view === 'home' && (
-                                    <>
-                                        <h1 className="text-3xl md:text-4xl font-bold mb-8 text-white tracking-tight">Buenas tardes</h1>
-                                        {allTopics.length === 0 ? (
-                                            <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-zinc-800 rounded-2xl text-zinc-600 gap-4">
-                                                <Icons.Folder size={64} className="opacity-50" />
-                                                <p>La biblioteca está vacía.</p>
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                                                {allTopics.map(topic => (
-                                                    <div 
-                                                        key={topic.id} 
-                                                        onClick={() => { setActiveTopic(topic); setView('topic'); }} 
-                                                        className="bg-white/5 p-4 rounded-xl hover:bg-white/10 transition-all duration-300 cursor-pointer group hover:-translate-y-1"
-                                                    >
-                                                        <div className="aspect-square w-full mb-4 shadow-2xl relative rounded-lg overflow-hidden">
-                                                            {topic.coverImage ? (
-                                                                <img src={topic.coverImage} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
-                                                            ) : (
-                                                                <div className={`w-full h-full bg-gradient-to-br ${topic.coverColor || 'from-zinc-700 to-zinc-900'} flex items-center justify-center`}>
-                                                                    <Icons.MusicNote size={48} className="text-white/20" />
-                                                                </div>
-                                                            )}
-                                                            <div className="absolute bottom-3 right-3 bg-celeste-400 text-dark-900 rounded-full p-3 shadow-xl opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-110 hover:bg-white">
-                                                                <Icons.Play className="ml-1" size={20} />
+                            {view === 'home' && (
+                                <div className="p-6 md:p-10 pb-36 max-w-7xl mx-auto">
+                                    <h1 className="text-3xl md:text-4xl font-bold mb-8 text-white tracking-tight">Buenas tardes</h1>
+                                    {allTopics.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-zinc-800 rounded-2xl text-zinc-600 gap-4">
+                                            <Icons.Folder size={64} className="opacity-50" />
+                                            <p>La biblioteca está vacía.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                                            {allTopics.map(topic => (
+                                                <div 
+                                                    key={topic.id} 
+                                                    onClick={() => { setActiveTopic(topic); setView('topic'); }} 
+                                                    className="bg-white/5 p-4 rounded-xl hover:bg-white/10 transition-all duration-300 cursor-pointer group hover:-translate-y-1"
+                                                >
+                                                    <div className="aspect-square w-full mb-4 shadow-2xl relative rounded-lg overflow-hidden">
+                                                        {topic.coverImage ? (
+                                                            <img src={topic.coverImage} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
+                                                        ) : (
+                                                            <div className={`w-full h-full bg-gradient-to-br ${topic.coverColor || 'from-zinc-700 to-zinc-900'} flex items-center justify-center`}>
+                                                                <Icons.MusicNote size={48} className="text-white/20" />
                                                             </div>
+                                                        )}
+                                                        <div className="absolute bottom-3 right-3 bg-celeste-400 text-dark-900 rounded-full p-3 shadow-xl opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-110 hover:bg-white">
+                                                            <Icons.Play className="ml-1" size={20} />
                                                         </div>
-                                                        <h3 className="font-bold text-white truncate">{topic.title}</h3>
-                                                        <p className="text-sm text-zinc-400 line-clamp-2 mt-1">{topic.description}</p>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-
-                                {view === 'topic' && activeTopic && (
-                                    <div className="animate-fade-in">
-                                        {/* Header del Tema */}
-                                        <div className="flex flex-col md:flex-row items-end gap-8 mb-8">
-                                            <div className="w-52 h-52 shadow-2xl flex-shrink-0 mx-auto md:mx-0 rounded-lg overflow-hidden bg-zinc-800 relative group">
-                                                {activeTopic.coverImage ? (
-                                                    <img src={activeTopic.coverImage} className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className={`w-full h-full bg-gradient-to-br ${activeTopic.coverColor || 'from-zinc-700 to-zinc-900'} flex items-center justify-center`}>
-                                                        <Icons.MusicNote size={64} className="text-white/20" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex flex-col gap-3 w-full text-center md:text-left">
-                                                <span className="uppercase text-xs font-bold tracking-widest text-celeste-400">Lección Premium</span>
-                                                <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight leading-none">{activeTopic.title}</h1>
-                                                <p className="text-zinc-400 text-lg max-w-2xl">{activeTopic.description}</p>
-                                                <div className="flex items-center justify-center md:justify-start gap-2 text-sm font-medium mt-2">
-                                                    <span className="text-white">{activeTopic.author}</span>
-                                                    <span className="text-zinc-600">•</span>
-                                                    <span className="text-zinc-400">{activeTopic.chapters.length} audios</span>
+                                                    <h3 className="font-bold text-white truncate">{topic.title}</h3>
+                                                    <p className="text-sm text-zinc-400 line-clamp-2 mt-1">{topic.description}</p>
                                                 </div>
-                                            </div>
+                                            ))}
                                         </div>
+                                    )}
+                                </div>
+                            )}
 
-                                        {/* Botón Acción Principal */}
-                                        <div className="flex items-center gap-4 mb-8 justify-center md:justify-start">
-                                            <button 
-                                                onClick={() => activeTopic.chapters.length > 0 && playTrack(activeTopic.chapters[0], activeTopic)} 
-                                                className="h-14 w-14 rounded-full bg-celeste-400 text-dark-900 flex items-center justify-center hover:bg-white hover:scale-105 transition-all shadow-lg shadow-celeste-500/20"
-                                            >
-                                                <Icons.Play className="ml-1" size={28} />
-                                            </button>
+                            {view === 'topic' && activeTopic && (
+                                <div className="p-6 md:p-10 pb-36 max-w-7xl mx-auto animate-fade-in">
+                                    <div className="flex flex-col md:flex-row items-end gap-8 mb-8">
+                                        <div className="w-52 h-52 shadow-2xl flex-shrink-0 mx-auto md:mx-0 rounded-lg overflow-hidden bg-zinc-800 relative group">
+                                            {activeTopic.coverImage ? (
+                                                <img src={activeTopic.coverImage} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className={`w-full h-full bg-gradient-to-br ${activeTopic.coverColor || 'from-zinc-700 to-zinc-900'} flex items-center justify-center`}>
+                                                    <Icons.MusicNote size={64} className="text-white/20" />
+                                                </div>
+                                            )}
                                         </div>
-
-                                        {/* Lista de Capítulos */}
-                                        <div className="flex flex-col bg-white/5 rounded-xl border border-white/5 overflow-hidden">
-                                            <div className="grid grid-cols-[auto_1fr_auto] gap-4 px-6 py-3 border-b border-white/5 text-zinc-500 text-xs font-bold uppercase tracking-wider">
-                                                <span className="w-8 text-center">#</span>
-                                                <span>Título</span>
-                                                <Icons.Clock size={16} />
+                                        <div className="flex flex-col gap-3 w-full text-center md:text-left">
+                                            <span className="uppercase text-xs font-bold tracking-widest text-celeste-400">Lección</span>
+                                            <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight leading-none">{activeTopic.title}</h1>
+                                            <p className="text-zinc-400 text-lg max-w-2xl">{activeTopic.description}</p>
+                                            <div className="flex items-center justify-center md:justify-start gap-2 text-sm font-medium mt-2">
+                                                <span className="text-white">{activeTopic.author}</span>
+                                                <span className="text-zinc-600">•</span>
+                                                <span className="text-zinc-400">{activeTopic.chapters.length} audios</span>
                                             </div>
-                                            {activeTopic.chapters.map((chapter, index) => {
-                                                const isCurrent = currentTrack?.id === chapter.id;
-                                                return (
-                                                    <div 
-                                                        key={chapter.id} 
-                                                        onClick={() => playTrack(chapter, activeTopic)} 
-                                                        className={`grid grid-cols-[auto_1fr_auto] gap-4 px-6 py-4 cursor-pointer group transition-colors items-center ${isCurrent ? 'bg-white/10' : 'hover:bg-white/5'}`}
-                                                    >
-                                                        <div className="w-8 flex justify-center text-sm font-medium text-zinc-500">
-                                                            {isCurrent && isPlaying ? 
-                                                                <div className="w-3 h-3 bg-celeste-400 rounded-full animate-pulse-slow shadow-[0_0_10px_#22d3ee]"></div> : 
-                                                                <span className="group-hover:hidden">{index + 1}</span>
-                                                            }
-                                                            <Icons.Play size={14} className={`hidden ${!isCurrent || !isPlaying ? 'group-hover:block' : ''} text-white`} />
-                                                        </div>
-                                                        <div className="flex flex-col min-w-0">
-                                                            <span className={`text-base font-medium truncate transition-colors ${isCurrent ? 'text-celeste-400' : 'text-white group-hover:text-white'}`}>
-                                                                {chapter.title}
-                                                            </span>
-                                                        </div>
-                                                        <span className="text-sm text-zinc-500 font-mono">{chapter.duration || "--:--"}</span>
-                                                    </div>
-                                                )
-                                            })}
                                         </div>
                                     </div>
-                                )}
-                            </div>
+
+                                    <div className="flex items-center gap-4 mb-8 justify-center md:justify-start">
+                                        <button 
+                                            onClick={() => activeTopic.chapters.length > 0 && playTrack(activeTopic.chapters[0], activeTopic)} 
+                                            className="h-14 w-14 rounded-full bg-celeste-400 text-dark-900 flex items-center justify-center hover:bg-white hover:scale-105 transition-all shadow-lg shadow-celeste-500/20"
+                                        >
+                                            <Icons.Play className="ml-1" size={28} />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex flex-col bg-white/5 rounded-xl border border-white/5 overflow-hidden">
+                                        <div className="grid grid-cols-[auto_1fr_auto] gap-4 px-6 py-3 border-b border-white/5 text-zinc-500 text-xs font-bold uppercase tracking-wider">
+                                            <span className="w-8 text-center">#</span>
+                                            <span>Título</span>
+                                            <Icons.Clock size={16} />
+                                        </div>
+                                        {activeTopic.chapters.map((chapter, index) => {
+                                            const isCurrent = currentTrack?.id === chapter.id;
+                                            return (
+                                                <div 
+                                                    key={chapter.id} 
+                                                    onClick={() => playTrack(chapter, activeTopic)} 
+                                                    className={`grid grid-cols-[auto_1fr_auto] gap-4 px-6 py-4 cursor-pointer group transition-colors items-center ${isCurrent ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                                                >
+                                                    <div className="w-8 flex justify-center text-sm font-medium text-zinc-500">
+                                                        {isCurrent && isPlaying ? 
+                                                            <div className="w-3 h-3 bg-celeste-400 rounded-full animate-pulse-slow shadow-[0_0_10px_#22d3ee]"></div> : 
+                                                            <span className="group-hover:hidden">{index + 1}</span>
+                                                        }
+                                                        <Icons.Play size={14} className={`hidden ${!isCurrent || !isPlaying ? 'group-hover:block' : ''} text-white`} />
+                                                    </div>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className={`text-base font-medium truncate transition-colors ${isCurrent ? 'text-celeste-400' : 'text-white group-hover:text-white'}`}>
+                                                            {chapter.title}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-sm text-zinc-500 font-mono">{chapter.duration || "--:--"}</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </main>
                     </div>
 
-                    {/* PLAYER BAR (Glassmorphism) */}
+                    {/* PLAYER BAR */}
                     <footer className="h-24 fixed bottom-0 w-full z-50 bg-dark-900/90 backdrop-blur-lg border-t border-white/10 px-4 md:px-8 flex items-center justify-between">
-                        {/* Info Track */}
                         <div className="w-1/3 flex items-center gap-4">
                             {currentTrack && (
                                 <div className="flex items-center gap-4 animate-fade-in-up">
@@ -454,8 +687,6 @@
                                                 <Icons.MusicNote className="text-white/20"/>
                                             </div>
                                         )}
-                                        {/* Overlay al hacer hover en miniatura para expandir (futura feature) */}
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                     </div>
                                     <div className="flex flex-col justify-center overflow-hidden">
                                         <span className="text-sm font-semibold text-white truncate hover:underline cursor-pointer">{currentTrack.title}</span>
@@ -465,7 +696,6 @@
                             )}
                         </div>
 
-                        {/* Controles Centrales */}
                         <div className="w-1/3 flex flex-col items-center gap-1">
                             <div className="flex items-center gap-6">
                                 <button onClick={playPrev} className="text-zinc-400 hover:text-white transition-colors active:scale-95"><Icons.SkipBack size={20}/></button>
@@ -480,7 +710,6 @@
                                 <button onClick={playNext} className="text-zinc-400 hover:text-white transition-colors active:scale-95"><Icons.SkipForward size={20}/></button>
                             </div>
                             
-                            {/* Barra de Progreso Custom */}
                             <div className="w-full flex items-center gap-3 text-xs text-zinc-500 font-mono mt-1">
                                 <span className="w-10 text-right">{formatTime(audioRef.current?.currentTime || 0)}</span>
                                 <div className="h-1 flex-1 bg-white/10 rounded-full relative group cursor-pointer">
@@ -507,7 +736,6 @@
                             </div>
                         </div>
 
-                        {/* Volumen (Visual) */}
                         <div className="w-1/3 flex justify-end items-center gap-3">
                             <Icons.Volume2 size={18} className="text-zinc-400"/>
                             <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer hover:h-1.5 transition-all">
