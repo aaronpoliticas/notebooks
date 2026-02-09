@@ -3,30 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-Learning Player</title>
+    <title>Notebooks Player</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Configuración de colores personalizados (Celeste Neon) -->
+    <!-- Configuración de colores personalizados (Estilo TIDAL: Negros profundos y Cyan) -->
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        celeste: {
-                            400: '#22d3ee', // Cyan brillante
-                            500: '#06b6d4',
-                            600: '#0891b2',
+                        brand: {
+                            DEFAULT: '#00FFFF', // Cyan eléctrico tipo TIDAL
+                            dark: '#00cccc',
                         },
-                        dark: {
-                            900: '#09090b', // Zinc super oscuro
-                            800: '#18181b',
-                            700: '#27272a',
+                        tidal: {
+                            black: '#000000',
+                            dark: '#121212', // Fondo principal
+                            panel: '#181818', // Paneles hover
+                            border: '#222222',
                         }
                     },
-                    animation: {
-                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    fontFamily: {
+                        sans: ['"Inter"', 'sans-serif'], // Limpio y moderno
                     }
                 }
             }
@@ -44,15 +44,15 @@
     <script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
 
     <style>
-        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         
-        /* Scrollbar minimalista */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #71717a; }
+        /* Scrollbar estilo TIDAL (Invisible o muy sutil) */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
         
-        /* Slider personalizado (Rango) */
+        /* Slider personalizado */
         input[type=range] {
             -webkit-appearance: none; 
             background: transparent; 
@@ -60,16 +60,16 @@
         }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
-            height: 12px;
-            width: 12px;
+            height: 10px;
+            width: 10px;
             border-radius: 50%;
-            background: #fff;
-            margin-top: -4px;
-            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+            background: #00FFFF; /* Cyan */
+            margin-top: -3px;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
             transition: transform 0.1s;
         }
         input[type=range]:hover::-webkit-slider-thumb {
-            transform: scale(1.2);
+            transform: scale(1.3);
         }
         input[type=range]::-webkit-slider-runnable-track {
             width: 100%;
@@ -80,7 +80,7 @@
         }
     </style>
 </head>
-<body class="bg-dark-900 text-zinc-100 antialiased selection:bg-celeste-500 selection:text-white">
+<body class="bg-tidal-black text-white antialiased selection:bg-brand selection:text-black">
     <div id="root" class="h-screen w-full"></div>
 
     <script type="text/babel">
@@ -93,12 +93,40 @@
         const Icon = ({ name, size = 24, className, fill, onClick }) => {
             const IconComp = L[name];
             if (!IconComp) {
-                if (name === 'Play') return <span className="text-xs font-bold text-black" onClick={onClick}>▶</span>;
-                if (name === 'Pause') return <span className="text-xs font-bold text-black" onClick={onClick}>||</span>;
+                // Fallback visual
+                if (name === 'Play') return <span className="text-xs font-bold" onClick={onClick}>▶</span>;
+                if (name === 'Pause') return <span className="text-xs font-bold" onClick={onClick}>||</span>;
                 return null; 
             }
             return <IconComp size={size} className={className} fill={fill} onClick={onClick} />;
         };
+
+        // --- ICONOS SVG PERSONALIZADOS EXTRA (Si faltan en Lucide) ---
+        // Agregamos BookOpen manualmente al mapa de Iconos para el logo
+        const CustomIcons = {
+            BookOpen: ({size=24, className}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+            ),
+            TidalPlay: ({size=24, className}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+                    <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="2" fill="none"/>
+                    <path d="M10 8l6 4-6 4V8z" fill="currentColor"/>
+                </svg>
+            )
+        };
+
+        // Wrapper para combinar iconos
+        const GetIcon = ({ name, ...props }) => {
+            if (CustomIcons[name]) {
+                const Comp = CustomIcons[name];
+                return <Comp {...props} />;
+            }
+            return <Icon name={name} {...props} />;
+        };
+
 
         // URL DE BASE DE DATOS
         const API_URL = "./database.json";
@@ -255,10 +283,9 @@
                 playTrack(activeTopic.chapters[nextIdx], activeTopic);
             };
 
-            // --- LÓGICA DE SUBIDA (ADMIN) - RECONFIGURADA PARA M4A ---
+            // --- LÓGICA DE SUBIDA (ADMIN) ---
             const handleAudioFiles = (files) => {
                 const fileList = Array.from(files);
-                // Filtramos estrictamente archivos m4a
                 const validFiles = fileList.filter(f => f.name.toLowerCase().endsWith('.m4a'));
                 
                 if (validFiles.length !== fileList.length) {
@@ -277,29 +304,22 @@
 
                 setUploadStatus('uploading');
                 try {
-                    // 1. Obtener database.json actual para tener el SHA
                     const dbData = await github.getFile(ghConfig.token, ghConfig.owner, ghConfig.repo, 'database.json');
                     const currentDb = JSON.parse(atob(dbData.content));
                     
-                    // 2. Preparar Rutas
                     const basePath = `audios/${uploadForm.title}`; 
                     
-                    // 3. Subir Imagen (si hay)
                     let coverPath = null;
                     if (uploadForm.cover) {
                         const coverBase64 = await fileToBase64(uploadForm.cover);
-                        // Forzamos el nombre a img.png según instrucción previa
                         coverPath = `${basePath}/img.png`;
                         await github.uploadFile(ghConfig.token, ghConfig.owner, ghConfig.repo, coverPath, coverBase64);
                     }
 
-                    // 4. Subir Audios
                     const chapters = [];
                     for (let i = 0; i < uploadForm.audios.length; i++) {
                         const audioItem = uploadForm.audios[i];
                         const audioBase64 = await fileToBase64(audioItem.file);
-                        // Aseguramos que se guarde con extensión .m4a en el repo, aunque el input ya filtra
-                        // pero usamos el nombre original del archivo que ya debería tener .m4a
                         const audioPath = `${basePath}/${audioItem.file.name}`;
                         await github.uploadFile(ghConfig.token, ghConfig.owner, ghConfig.repo, audioPath, audioBase64);
                         
@@ -310,7 +330,6 @@
                         });
                     }
 
-                    // 5. Actualizar JSON Localmente
                     const newTopic = {
                         id: `t_${Date.now()}`,
                         title: uploadForm.title,
@@ -335,13 +354,12 @@
                     const catIndex = currentDb.findIndex(c => c.id === category.id);
                     currentDb[catIndex].topics.push(newTopic);
 
-                    // 6. Subir database.json actualizado
                     const jsonContent = btoa(unescape(encodeURIComponent(JSON.stringify(currentDb, null, 2))));
                     await github.uploadFile(ghConfig.token, ghConfig.owner, ghConfig.repo, 'database.json', jsonContent, dbData.sha);
 
                     setUploadStatus('success');
                     alert("¡Contenido subido exitosamente! Espera unos minutos a que GitHub Pages se actualice.");
-                    setDb(currentDb); // Actualizar vista local
+                    setDb(currentDb);
                     setView('home');
                     setUploadForm({ category: '', title: '', description: '', author: '', cover: null, audios: [] });
 
@@ -354,17 +372,19 @@
 
             // Renderizado Condicional
             if (loading) return (
-                <div className="h-screen flex flex-col items-center justify-center bg-dark-900 text-celeste-400 gap-4">
-                    <Icon name="Loader" className="animate-spin" size={48} />
-                    <span className="text-sm font-medium tracking-wider uppercase animate-pulse">Cargando Estudio...</span>
+                <div className="h-screen flex flex-col items-center justify-center bg-tidal-black text-brand gap-4">
+                    <GetIcon name="Loader" className="animate-spin" size={48} />
+                    <span className="text-sm font-bold tracking-widest uppercase animate-pulse">Cargando Notebooks...</span>
                 </div>
             );
             
             if (error) return (
-                <div className="h-screen flex flex-col items-center justify-center bg-dark-900 text-red-400 gap-4 p-8 text-center">
-                    <Icon name="AlertCircle" size={48} />
-                    <h2 className="text-xl font-bold">Algo salió mal</h2>
-                    <p className="text-zinc-500">{error}</p>
+                <div className="h-screen flex flex-col items-center justify-center bg-tidal-black text-white gap-6 p-8 text-center">
+                    <GetIcon name="AlertCircle" size={64} className="text-red-500" />
+                    <div>
+                        <h2 className="text-2xl font-bold mb-2">Algo salió mal</h2>
+                        <p className="text-zinc-400">{error}</p>
+                    </div>
                 </div>
             );
 
@@ -373,50 +393,60 @@
             // --- HELPERS UI ---
             const CoverArt = ({ topic, className, size=24 }) => {
                 if (topic.coverImage) {
-                    return <img src={topic.coverImage} className={`object-cover bg-zinc-800 ${className}`} onError={(e) => e.target.style.display='none'} />;
+                    return <img src={topic.coverImage} className={`object-cover bg-tidal-panel ${className}`} onError={(e) => e.target.style.display='none'} />;
                 }
                 return (
-                    <div className={`bg-gradient-to-br ${topic.coverColor || 'from-gray-700 to-gray-900'} flex items-center justify-center ${className}`}>
-                        <Icon name="ListMusic" size={size} className="text-white/50" />
+                    <div className={`bg-gradient-to-b from-zinc-700 to-zinc-900 flex items-center justify-center ${className}`}>
+                        <GetIcon name="BookOpen" size={size} className="text-white/20" />
                     </div>
                 );
             };
 
             return (
-                <div className="flex flex-col h-screen overflow-hidden">
+                <div className="flex flex-col h-screen overflow-hidden bg-tidal-black font-sans text-white">
                     
                     {/* CUERPO PRINCIPAL */}
                     <div className="flex flex-1 overflow-hidden">
                         
-                        {/* SIDEBAR */}
-                        <aside className="w-64 bg-dark-900/50 backdrop-blur-xl border-r border-white/5 hidden md:flex flex-col p-4 gap-6">
-                            <div className="space-y-4">
-                                <div onClick={() => {setView('home'); setMobileMenuOpen(false);}} className={`flex items-center gap-4 cursor-pointer transition-colors group ${view === 'home' ? 'text-white' : 'text-zinc-400 hover:text-white'}`}>
-                                    <Icon name="Home" className="group-hover:text-celeste-400 transition-colors" />
-                                    <span className="font-semibold">Inicio</span>
+                        {/* SIDEBAR (TIDAL Style: Negro sólido, borde sutil) */}
+                        <aside className="w-60 bg-black border-r border-tidal-border hidden md:flex flex-col p-6 gap-8 z-20">
+                            {/* LOGOTIPO */}
+                            <div className="flex items-center gap-3 text-white font-black text-xl tracking-tighter cursor-pointer" onClick={() => {setView('home'); setMobileMenuOpen(false);}}>
+                                <GetIcon name="BookOpen" className="text-white" size={28} />
+                                <span>Notebooks</span>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div onClick={() => {setView('home'); setMobileMenuOpen(false);}} className={`flex items-center gap-4 cursor-pointer transition-colors group ${view === 'home' ? 'text-brand' : 'text-zinc-400 hover:text-white'}`}>
+                                    <GetIcon name="Home" className="group-hover:text-brand transition-colors" size={22} />
+                                    <span className="font-bold text-sm">Inicio</span>
                                 </div>
-                                <div onClick={() => {setView('admin'); setMobileMenuOpen(false);}} className={`flex items-center gap-4 cursor-pointer transition-colors group ${view === 'admin' ? 'text-white' : 'text-zinc-400 hover:text-white'}`}>
-                                    <Icon name="UploadCloud" className="group-hover:text-celeste-400 transition-colors" />
-                                    <span className="font-semibold">Subir</span>
+                                <div className="flex items-center gap-4 cursor-pointer transition-colors group text-zinc-400 hover:text-white">
+                                    <GetIcon name="Search" className="group-hover:text-brand transition-colors" size={22} />
+                                    <span className="font-bold text-sm">Explorar</span>
+                                </div>
+                                <div onClick={() => {setView('admin'); setMobileMenuOpen(false);}} className={`flex items-center gap-4 cursor-pointer transition-colors group ${view === 'admin' ? 'text-brand' : 'text-zinc-400 hover:text-white'}`}>
+                                    <GetIcon name="UploadCloud" className="group-hover:text-brand transition-colors" size={22} />
+                                    <span className="font-bold text-sm">Subir</span>
                                 </div>
                             </div>
                             
-                            <div className="flex-1 overflow-y-auto pr-2 space-y-6">
-                                <div className="flex items-center gap-2 text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                                    <Icon name="Library" size={16} /> Biblioteca
+                            <div className="flex-1 overflow-y-auto pr-2 space-y-6 scrollbar-hide">
+                                <div className="text-xs font-bold text-zinc-500 uppercase tracking-widest border-b border-tidal-border pb-2">
+                                    Tu Biblioteca
                                 </div>
                                 {db.map(cat => (
-                                    <div key={cat.id} className="space-y-3">
-                                        <h3 className="text-xs font-semibold text-zinc-600 uppercase pl-2 border-l-2 border-transparent">{cat.name}</h3>
-                                        <div className="space-y-1">
+                                    <div key={cat.id} className="space-y-2">
+                                        <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wide px-2">{cat.name}</h3>
+                                        <div className="space-y-0.5">
                                             {cat.topics?.map(topic => (
                                                 <div 
                                                     key={topic.id} 
                                                     onClick={() => { setActiveTopic(topic); setView('topic'); }} 
-                                                    className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${activeTopic?.id === topic.id ? 'bg-white/10 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}
+                                                    className={`group flex items-center gap-3 p-2 rounded-md cursor-pointer transition-all ${activeTopic?.id === topic.id ? 'bg-tidal-panel text-white' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
                                                 >
-                                                    <div className="w-8 h-8 rounded bg-gradient-to-br from-zinc-700 to-zinc-800 flex items-center justify-center flex-shrink-0 shadow-lg">
-                                                        <CoverArt topic={topic} className="w-full h-full rounded" size={14} />
+                                                    <div className="w-8 h-8 rounded-sm bg-zinc-800 flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden">
+                                                        <CoverArt topic={topic} className="w-full h-full rounded-sm" size={14} />
                                                     </div>
                                                     <p className="text-sm font-medium truncate">{topic.title}</p>
                                                 </div>
@@ -427,86 +457,103 @@
                             </div>
                         </aside>
 
-                        {/* CONTENIDO CENTRAL */}
-                        <main className="flex-1 bg-gradient-to-b from-dark-800 to-dark-900 overflow-y-auto relative scrollbar-thin">
+                        {/* CONTENIDO CENTRAL (TIDAL Style: Fondo Gris Oscuro) */}
+                        <main className="flex-1 bg-tidal-dark overflow-y-auto relative scrollbar-hide">
                             
                             {/* VISTA: ADMIN / SUBIDA */}
                             {view === 'admin' && (
-                                <div className="p-6 md:p-10 pb-36 max-w-3xl mx-auto animate-fade-in">
-                                    <h1 className="text-3xl font-bold mb-8 text-white">Administración</h1>
+                                <div className="p-8 md:p-12 pb-36 max-w-4xl mx-auto animate-fade-in">
+                                    <h1 className="text-4xl font-black mb-10 text-white tracking-tight">Administración</h1>
                                     
                                     {/* Configuración GitHub */}
-                                    <div className="bg-white/5 p-6 rounded-xl border border-white/10 mb-8">
-                                        <div className="flex items-center gap-2 mb-4 text-celeste-400 font-bold uppercase text-xs tracking-wider">
-                                            <Icon name="Settings" size={16}/> Configuración del Repositorio
+                                    <div className="bg-tidal-panel p-8 rounded-lg mb-8 shadow-xl">
+                                        <div className="flex items-center gap-2 mb-6 text-brand font-bold uppercase text-xs tracking-wider">
+                                            <GetIcon name="Settings" size={16}/> Configuración del Repositorio
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <input type="text" placeholder="Usuario GitHub (Owner)" value={ghConfig.owner} onChange={e => setGhConfig({...ghConfig, owner: e.target.value})} className="bg-dark-900 border border-zinc-700 rounded p-2 text-sm focus:border-celeste-400 outline-none" />
-                                            <input type="text" placeholder="Nombre Repositorio" value={ghConfig.repo} onChange={e => setGhConfig({...ghConfig, repo: e.target.value})} className="bg-dark-900 border border-zinc-700 rounded p-2 text-sm focus:border-celeste-400 outline-none" />
-                                            <input type="password" placeholder="Personal Access Token (PAT)" value={ghConfig.token} onChange={e => setGhConfig({...ghConfig, token: e.target.value})} className="bg-dark-900 border border-zinc-700 rounded p-2 text-sm focus:border-celeste-400 outline-none md:col-span-2" />
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-zinc-500">Usuario GitHub</label>
+                                                <input type="text" placeholder="Ej. tu-usuario" value={ghConfig.owner} onChange={e => setGhConfig({...ghConfig, owner: e.target.value})} className="w-full bg-tidal-dark border border-zinc-700 rounded p-3 text-sm focus:border-brand outline-none transition-colors" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs font-bold text-zinc-500">Repositorio</label>
+                                                <input type="text" placeholder="Ej. notebooks-audio" value={ghConfig.repo} onChange={e => setGhConfig({...ghConfig, repo: e.target.value})} className="w-full bg-tidal-dark border border-zinc-700 rounded p-3 text-sm focus:border-brand outline-none transition-colors" />
+                                            </div>
+                                            <div className="space-y-2 md:col-span-2">
+                                                <label className="text-xs font-bold text-zinc-500">Personal Access Token (PAT)</label>
+                                                <input type="password" placeholder="ghp_xxxxxxxxxxxx" value={ghConfig.token} onChange={e => setGhConfig({...ghConfig, token: e.target.value})} className="w-full bg-tidal-dark border border-zinc-700 rounded p-3 text-sm focus:border-brand outline-none transition-colors" />
+                                            </div>
                                         </div>
-                                        <button onClick={saveConfig} className="mt-4 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded text-xs font-bold uppercase tracking-wider transition-colors">Guardar Credenciales</button>
+                                        <button onClick={saveConfig} className="mt-6 px-6 py-3 bg-zinc-700 hover:bg-zinc-600 rounded font-bold text-sm uppercase tracking-wider transition-colors">Guardar Credenciales</button>
                                     </div>
 
                                     {/* Formulario de Subida */}
-                                    <div className="bg-white/5 p-6 rounded-xl border border-white/10">
-                                        <div className="flex items-center gap-2 mb-6 text-celeste-400 font-bold uppercase text-xs tracking-wider">
-                                            <Icon name="UploadCloud" size={16}/> Nuevo Contenido
+                                    <div className="bg-tidal-panel p-8 rounded-lg shadow-xl">
+                                        <div className="flex items-center gap-2 mb-8 text-brand font-bold uppercase text-xs tracking-wider">
+                                            <GetIcon name="UploadCloud" size={16}/> Nuevo Contenido
                                         </div>
                                         
-                                        <div className="space-y-4">
+                                        <div className="space-y-6">
                                             {/* Datos Básicos */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-xs text-zinc-500 mb-1">Categoría</label>
-                                                    <input type="text" list="categories" placeholder="Ej. Economía" value={uploadForm.category} onChange={e => setUploadForm({...uploadForm, category: e.target.value})} className="w-full bg-dark-900 border border-zinc-700 rounded p-2 text-white focus:border-celeste-400 outline-none" />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                <div className="space-y-2">
+                                                    <label className="block text-xs font-bold text-zinc-500 uppercase">Categoría</label>
+                                                    <input type="text" list="categories" placeholder="Ej. Economía" value={uploadForm.category} onChange={e => setUploadForm({...uploadForm, category: e.target.value})} className="w-full bg-tidal-dark border border-zinc-700 rounded p-3 text-white focus:border-brand outline-none" />
                                                     <datalist id="categories">
                                                         {db.map(c => <option key={c.id} value={c.name} />)}
                                                     </datalist>
                                                 </div>
-                                                <div>
-                                                    <label className="block text-xs text-zinc-500 mb-1">Título del Tema</label>
-                                                    <input type="text" placeholder="Ej. Historia de Roma" value={uploadForm.title} onChange={e => setUploadForm({...uploadForm, title: e.target.value})} className="w-full bg-dark-900 border border-zinc-700 rounded p-2 text-white focus:border-celeste-400 outline-none" />
+                                                <div className="space-y-2">
+                                                    <label className="block text-xs font-bold text-zinc-500 uppercase">Título del Tema</label>
+                                                    <input type="text" placeholder="Ej. Historia de Roma" value={uploadForm.title} onChange={e => setUploadForm({...uploadForm, title: e.target.value})} className="w-full bg-tidal-dark border border-zinc-700 rounded p-3 text-white focus:border-brand outline-none" />
                                                 </div>
                                             </div>
 
-                                            <div>
-                                                <label className="block text-xs text-zinc-500 mb-1">Autor</label>
-                                                <input type="text" placeholder="Nombre del autor" value={uploadForm.author} onChange={e => setUploadForm({...uploadForm, author: e.target.value})} className="w-full bg-dark-900 border border-zinc-700 rounded p-2 text-white focus:border-celeste-400 outline-none" />
+                                            <div className="space-y-2">
+                                                <label className="block text-xs font-bold text-zinc-500 uppercase">Autor</label>
+                                                <input type="text" placeholder="Nombre del autor" value={uploadForm.author} onChange={e => setUploadForm({...uploadForm, author: e.target.value})} className="w-full bg-tidal-dark border border-zinc-700 rounded p-3 text-white focus:border-brand outline-none" />
                                             </div>
 
-                                            <div>
-                                                <label className="block text-xs text-zinc-500 mb-1">Descripción</label>
-                                                <textarea rows="2" placeholder="Breve descripción..." value={uploadForm.description} onChange={e => setUploadForm({...uploadForm, description: e.target.value})} className="w-full bg-dark-900 border border-zinc-700 rounded p-2 text-white focus:border-celeste-400 outline-none"></textarea>
+                                            <div className="space-y-2">
+                                                <label className="block text-xs font-bold text-zinc-500 uppercase">Descripción</label>
+                                                <textarea rows="3" placeholder="Breve descripción..." value={uploadForm.description} onChange={e => setUploadForm({...uploadForm, description: e.target.value})} className="w-full bg-tidal-dark border border-zinc-700 rounded p-3 text-white focus:border-brand outline-none"></textarea>
                                             </div>
 
                                             {/* Imagen */}
-                                            <div>
-                                                <label className="block text-xs text-zinc-500 mb-1">Imagen de Portada (PNG)</label>
-                                                <input type="file" accept="image/png" onChange={e => setUploadForm({...uploadForm, cover: e.target.files[0]})} className="block w-full text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-zinc-800 file:text-celeste-400 hover:file:bg-zinc-700" />
+                                            <div className="space-y-2">
+                                                <label className="block text-xs font-bold text-zinc-500 uppercase">Imagen de Portada (PNG)</label>
+                                                <div className="relative">
+                                                    <input type="file" accept="image/png" onChange={e => setUploadForm({...uploadForm, cover: e.target.files[0]})} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                                    <div className="w-full bg-tidal-dark border border-dashed border-zinc-700 rounded p-4 text-center text-zinc-400 hover:border-brand hover:text-white transition-colors">
+                                                        {uploadForm.cover ? uploadForm.cover.name : "Click para seleccionar imagen PNG"}
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             {/* Audios */}
-                                            <div className="border-t border-white/10 pt-4">
-                                                <label className="block text-xs text-zinc-500 mb-2">Archivos de Audio .m4a (Selecciona varios)</label>
-                                                <input 
-                                                    type="file" 
-                                                    accept=".m4a,audio/mp4,audio/x-m4a" 
-                                                    multiple 
-                                                    onChange={e => handleAudioFiles(e.target.files)} 
-                                                    className="hidden" 
-                                                    id="audio-input" 
-                                                />
-                                                <label htmlFor="audio-input" className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-sm text-white transition-colors border border-white/10">
-                                                    <Icon name="Plus" size={16} /> Seleccionar Archivos
-                                                </label>
+                                            <div className="border-t border-zinc-800 pt-6 space-y-4">
+                                                <div className="flex justify-between items-center">
+                                                    <label className="block text-xs font-bold text-zinc-500 uppercase">Archivos de Audio .m4a</label>
+                                                    <input 
+                                                        type="file" 
+                                                        accept=".m4a,audio/mp4,audio/x-m4a" 
+                                                        multiple 
+                                                        onChange={e => handleAudioFiles(e.target.files)} 
+                                                        className="hidden" 
+                                                        id="audio-input" 
+                                                    />
+                                                    <label htmlFor="audio-input" className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-xs font-bold uppercase text-white transition-colors">
+                                                        <GetIcon name="Plus" size={16} /> Agregar Archivos
+                                                    </label>
+                                                </div>
 
                                                 {/* Lista previa */}
-                                                <div className="mt-4 space-y-2">
+                                                <div className="space-y-2 bg-tidal-dark rounded p-2 min-h-[100px]">
+                                                    {uploadForm.audios.length === 0 && <p className="text-zinc-600 text-center text-sm py-8">No hay audios seleccionados</p>}
                                                     {uploadForm.audios.map((audio, idx) => (
-                                                        <div key={idx} className="flex items-center justify-between bg-dark-900 p-2 rounded border border-white/5">
-                                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                                <Icon name="MusicNote" size={14} className="text-zinc-500 flex-shrink-0" />
+                                                        <div key={idx} className="flex items-center justify-between bg-tidal-panel p-3 rounded hover:bg-zinc-800 transition-colors group">
+                                                            <div className="flex items-center gap-4 overflow-hidden w-full">
+                                                                <span className="text-zinc-600 font-mono text-xs w-6">{idx + 1}</span>
                                                                 <input 
                                                                     type="text" 
                                                                     value={audio.name} 
@@ -515,12 +562,12 @@
                                                                         newAudios[idx].name = e.target.value;
                                                                         setUploadForm({...uploadForm, audios: newAudios});
                                                                     }}
-                                                                    className="bg-transparent text-sm text-zinc-300 outline-none w-full"
+                                                                    className="bg-transparent text-sm font-medium text-zinc-300 outline-none w-full focus:text-brand"
                                                                 />
                                                             </div>
-                                                            <Icon name="Trash" 
-                                                                size={14} 
-                                                                className="text-red-500 cursor-pointer hover:text-red-400" 
+                                                            <GetIcon name="Trash" 
+                                                                size={16} 
+                                                                className="text-zinc-600 cursor-pointer hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" 
                                                                 onClick={() => {
                                                                     const newAudios = uploadForm.audios.filter((_, i) => i !== idx);
                                                                     setUploadForm({...uploadForm, audios: newAudios});
@@ -532,13 +579,13 @@
                                             </div>
 
                                             {/* Botón Final */}
-                                            <div className="pt-6">
+                                            <div className="pt-8">
                                                 <button 
                                                     onClick={handleUpload} 
                                                     disabled={uploadStatus === 'uploading'}
-                                                    className={`w-full py-4 rounded-lg font-bold text-dark-900 transition-all ${uploadStatus === 'uploading' ? 'bg-zinc-600 cursor-wait' : 'bg-celeste-400 hover:bg-celeste-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.3)]'}`}
+                                                    className={`w-full py-4 rounded font-bold text-black uppercase tracking-wider transition-all shadow-lg ${uploadStatus === 'uploading' ? 'bg-zinc-600 cursor-wait' : 'bg-brand hover:bg-brand-dark hover:scale-[1.01]'}`}
                                                 >
-                                                    {uploadStatus === 'uploading' ? 'Subiendo archivos...' : 'PUBLICAR CONTENIDO'}
+                                                    {uploadStatus === 'uploading' ? 'PROCESANDO...' : 'PUBLICAR CONTENIDO'}
                                                 </button>
                                             </div>
                                         </div>
@@ -547,29 +594,32 @@
                             )}
 
                             {view === 'home' && (
-                                <div className="p-6 md:p-10 pb-36 max-w-7xl mx-auto">
-                                    <h1 className="text-3xl md:text-4xl font-bold mb-8 text-white tracking-tight">Buenas tardes</h1>
+                                <div className="p-8 md:p-12 pb-36 max-w-[1600px] mx-auto">
+                                    <h1 className="text-4xl font-black mb-10 text-white tracking-tight">Bienvenido</h1>
                                     {allTopics.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-zinc-800 rounded-2xl text-zinc-600 gap-4">
-                                            <Icon name="Folder" size={64} className="opacity-50" />
-                                            <p>La biblioteca está vacía.</p>
+                                        <div className="flex flex-col items-center justify-center p-20 border border-dashed border-zinc-800 rounded-lg text-zinc-600 gap-6">
+                                            <GetIcon name="Folder" size={64} className="opacity-30" />
+                                            <p className="font-bold text-lg">Tu biblioteca está vacía.</p>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
                                             {allTopics.map(topic => (
                                                 <div 
                                                     key={topic.id} 
                                                     onClick={() => { setActiveTopic(topic); setView('topic'); }} 
-                                                    className="bg-white/5 p-4 rounded-xl hover:bg-white/10 transition-all duration-300 cursor-pointer group hover:-translate-y-1"
+                                                    className="group cursor-pointer p-4 rounded-lg hover:bg-tidal-panel transition-colors duration-300"
                                                 >
-                                                    <div className="aspect-square w-full mb-4 shadow-2xl relative rounded-lg overflow-hidden">
-                                                        <CoverArt topic={topic} className="w-full h-full rounded-lg" size={48} />
-                                                        <div className="absolute bottom-3 right-3 bg-celeste-400 text-dark-900 rounded-full p-3 shadow-xl opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 hover:scale-110 hover:bg-white">
-                                                            <Icon name="Play" className="ml-1" size={20} />
+                                                    <div className="aspect-square w-full mb-5 shadow-2xl relative rounded-md overflow-hidden bg-zinc-800">
+                                                        <CoverArt topic={topic} className="w-full h-full transform transition-transform duration-500 group-hover:scale-105" size={48} />
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                            {/* Botón Play estilo TIDAL */}
+                                                            <div className="w-14 h-14 rounded-full bg-brand text-black flex items-center justify-center shadow-2xl transform translate-y-4 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:scale-110">
+                                                                <GetIcon name="Play" className="ml-1" size={24} />
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    <h3 className="font-bold text-white truncate">{topic.title}</h3>
-                                                    <p className="text-sm text-zinc-400 line-clamp-2 mt-1">{topic.description}</p>
+                                                    <h3 className="font-bold text-white truncate text-base mb-1 group-hover:underline decoration-brand underline-offset-4">{topic.title}</h3>
+                                                    <p className="text-sm text-zinc-400 line-clamp-2">{topic.description}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -578,37 +628,42 @@
                             )}
 
                             {view === 'topic' && activeTopic && (
-                                <div className="p-6 md:p-10 pb-36 max-w-7xl mx-auto animate-fade-in">
-                                    <div className="flex flex-col md:flex-row items-end gap-8 mb-8">
-                                        <div className="w-52 h-52 shadow-2xl flex-shrink-0 mx-auto md:mx-0 rounded-lg overflow-hidden bg-zinc-800 relative group">
-                                            <CoverArt topic={activeTopic} className="w-full h-full rounded-lg" size={64} />
+                                <div className="p-8 md:p-12 pb-36 max-w-[1600px] mx-auto animate-fade-in">
+                                    <div className="flex flex-col md:flex-row items-end gap-10 mb-12">
+                                        <div className="w-64 h-64 shadow-2xl flex-shrink-0 mx-auto md:mx-0 rounded-md overflow-hidden bg-zinc-800 relative group">
+                                            <CoverArt topic={activeTopic} className="w-full h-full" size={80} />
                                         </div>
-                                        <div className="flex flex-col gap-3 w-full text-center md:text-left">
-                                            <span className="uppercase text-xs font-bold tracking-widest text-celeste-400">Lección</span>
-                                            <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight leading-none">{activeTopic.title}</h1>
-                                            <p className="text-zinc-400 text-lg max-w-2xl">{activeTopic.description}</p>
-                                            <div className="flex items-center justify-center md:justify-start gap-2 text-sm font-medium mt-2">
-                                                <span className="text-white">{activeTopic.author}</span>
+                                        <div className="flex flex-col gap-4 w-full text-center md:text-left">
+                                            <span className="uppercase text-xs font-black tracking-widest text-brand">NOTEBOOK</span>
+                                            <h1 className="text-5xl md:text-7xl font-black text-white tracking-tight leading-none">{activeTopic.title}</h1>
+                                            <p className="text-zinc-300 text-lg max-w-3xl">{activeTopic.description}</p>
+                                            <div className="flex items-center justify-center md:justify-start gap-3 text-sm font-bold mt-2">
+                                                <div className="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center">
+                                                    <GetIcon name="BookOpen" size={12} className="text-white"/>
+                                                </div>
+                                                <span className="text-white hover:underline cursor-pointer">{activeTopic.author}</span>
                                                 <span className="text-zinc-600">•</span>
-                                                <span className="text-zinc-400">{activeTopic.chapters.length} audios</span>
+                                                <span className="text-zinc-400">{activeTopic.chapters.length} partes</span>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-4 mb-8 justify-center md:justify-start">
+                                    {/* Toolbar */}
+                                    <div className="flex items-center gap-6 mb-10 justify-center md:justify-start">
                                         <button 
                                             onClick={() => activeTopic.chapters.length > 0 && playTrack(activeTopic.chapters[0], activeTopic)} 
-                                            className="h-14 w-14 rounded-full bg-celeste-400 text-dark-900 flex items-center justify-center hover:bg-white hover:scale-105 transition-all shadow-lg shadow-celeste-500/20"
+                                            className="h-16 w-16 rounded-full bg-brand text-black flex items-center justify-center hover:bg-white hover:scale-105 transition-all shadow-[0_0_30px_rgba(0,255,255,0.3)]"
                                         >
-                                            <Icon name="Play" className="ml-1" size={28} />
+                                            <GetIcon name="Play" className="ml-1" size={32} />
                                         </button>
                                     </div>
 
-                                    <div className="flex flex-col bg-white/5 rounded-xl border border-white/5 overflow-hidden">
-                                        <div className="grid grid-cols-[auto_1fr_auto] gap-4 px-6 py-3 border-b border-white/5 text-zinc-500 text-xs font-bold uppercase tracking-wider">
+                                    {/* Lista de Capítulos */}
+                                    <div className="flex flex-col">
+                                        <div className="grid grid-cols-[auto_1fr_auto] gap-6 px-4 py-3 border-b border-zinc-800 text-zinc-500 text-xs font-bold uppercase tracking-widest mb-2">
                                             <span className="w-8 text-center">#</span>
                                             <span>Título</span>
-                                            <Icon name="Clock" size={16} />
+                                            <GetIcon name="Clock" size={16} />
                                         </div>
                                         {activeTopic.chapters.map((chapter, index) => {
                                             const isCurrent = currentTrack?.id === chapter.id;
@@ -616,19 +671,20 @@
                                                 <div 
                                                     key={chapter.id} 
                                                     onClick={() => playTrack(chapter, activeTopic)} 
-                                                    className={`grid grid-cols-[auto_1fr_auto] gap-4 px-6 py-4 cursor-pointer group transition-colors items-center ${isCurrent ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                                                    className={`group grid grid-cols-[auto_1fr_auto] gap-6 px-4 py-4 rounded cursor-pointer transition-all items-center ${isCurrent ? 'bg-zinc-800/50' : 'hover:bg-zinc-800/30'}`}
                                                 >
-                                                    <div className="w-8 flex justify-center text-sm font-medium text-zinc-500">
+                                                    <div className="w-8 flex justify-center text-sm font-bold text-zinc-500">
                                                         {isCurrent && isPlaying ? 
-                                                            <div className="w-3 h-3 bg-celeste-400 rounded-full animate-pulse-slow shadow-[0_0_10px_#22d3ee]"></div> : 
+                                                            <GetIcon name="TidalPlay" size={16} className="text-brand animate-pulse"/> : 
                                                             <span className="group-hover:hidden">{index + 1}</span>
                                                         }
-                                                        <Icon name="Play" size={14} className={`hidden ${!isCurrent || !isPlaying ? 'group-hover:block' : ''} text-white`} />
+                                                        <GetIcon name="Play" size={14} className={`hidden ${!isCurrent || !isPlaying ? 'group-hover:block' : ''} text-white`} />
                                                     </div>
                                                     <div className="flex flex-col min-w-0">
-                                                        <span className={`text-base font-medium truncate transition-colors ${isCurrent ? 'text-celeste-400' : 'text-white group-hover:text-white'}`}>
+                                                        <span className={`text-base font-bold truncate transition-colors ${isCurrent ? 'text-brand' : 'text-white'}`}>
                                                             {chapter.title}
                                                         </span>
+                                                        {isCurrent && <span className="text-xs text-brand mt-0.5">Reproduciendo</span>}
                                                     </div>
                                                     <span className="text-sm text-zinc-500 font-mono">{chapter.duration || "--:--"}</span>
                                                 </div>
@@ -640,42 +696,47 @@
                         </main>
                     </div>
 
-                    {/* PLAYER BAR */}
-                    <footer className="h-24 fixed bottom-0 w-full z-50 bg-dark-900/90 backdrop-blur-lg border-t border-white/10 px-4 md:px-8 flex items-center justify-between">
+                    {/* PLAYER BAR (Fixed Bottom) */}
+                    <footer className="h-24 fixed bottom-0 w-full z-50 bg-black border-t border-zinc-900 px-4 md:px-8 flex items-center justify-between shadow-2xl">
+                        {/* Info Track */}
                         <div className="w-1/3 flex items-center gap-4">
                             {currentTrack && (
                                 <div className="flex items-center gap-4 animate-fade-in-up">
-                                    <div className="hidden md:block w-14 h-14 rounded-md overflow-hidden bg-zinc-800 shadow-lg relative group">
+                                    <div className="hidden md:block w-14 h-14 rounded-sm overflow-hidden bg-zinc-800 relative group cursor-pointer hover:opacity-80 transition-opacity">
                                         <CoverArt topic={activeTopic} className="w-full h-full" size={24} />
                                     </div>
                                     <div className="flex flex-col justify-center overflow-hidden">
-                                        <span className="text-sm font-semibold text-white truncate hover:underline cursor-pointer">{currentTrack.title}</span>
-                                        <span className="text-xs text-zinc-400 truncate hover:text-white cursor-pointer transition-colors">{activeTopic?.title}</span>
+                                        <span className="text-sm font-bold text-white truncate hover:underline cursor-pointer">{currentTrack.title}</span>
+                                        <span className="text-xs font-medium text-zinc-400 truncate hover:text-white cursor-pointer transition-colors">{activeTopic?.title}</span>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        <div className="w-1/3 flex flex-col items-center gap-1">
-                            <div className="flex items-center gap-6">
-                                <button onClick={playPrev} className="text-zinc-400 hover:text-white transition-colors active:scale-95"><Icon name="SkipBack" size={20}/></button>
+                        {/* Controles Centrales */}
+                        <div className="w-1/3 flex flex-col items-center justify-center gap-2">
+                            <div className="flex items-center gap-8">
+                                <button onClick={playPrev} className="text-zinc-400 hover:text-white transition-colors active:scale-95"><GetIcon name="SkipBack" size={20}/></button>
                                 <button 
                                     onClick={() => setIsPlaying(!isPlaying)} 
                                     disabled={!currentTrack}
-                                    className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center hover:scale-105 hover:bg-celeste-400 transition-all disabled:opacity-50 disabled:scale-100 shadow-lg shadow-white/10"
+                                    className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center hover:scale-110 hover:bg-brand transition-all disabled:opacity-50 disabled:scale-100"
                                 >
-                                    {isBuffering ? <Icon name="Loader" className="animate-spin" size={20} /> : 
-                                     (isPlaying ? <Icon name="Pause" fill="currentColor" size={20}/> : <Icon name="Play" fill="currentColor" className="ml-0.5" size={20}/>)}
+                                    {isBuffering ? <GetIcon name="Loader" className="animate-spin" size={20} /> : 
+                                     (isPlaying ? <GetIcon name="Pause" fill="currentColor" size={18}/> : <GetIcon name="Play" fill="currentColor" className="ml-0.5" size={18}/>)}
                                 </button>
-                                <button onClick={playNext} className="text-zinc-400 hover:text-white transition-colors active:scale-95"><Icon name="SkipForward" size={20}/></button>
+                                <button onClick={playNext} className="text-zinc-400 hover:text-white transition-colors active:scale-95"><GetIcon name="SkipForward" size={20}/></button>
                             </div>
                             
-                            <div className="w-full flex items-center gap-3 text-xs text-zinc-500 font-mono mt-1">
-                                <span className="w-10 text-right">{formatTime(audioRef.current?.currentTime || 0)}</span>
-                                <div className="h-1 flex-1 bg-white/10 rounded-full relative group cursor-pointer">
-                                    <div className="absolute h-full bg-celeste-400 rounded-full group-hover:bg-celeste-300 transition-colors" style={{ width: `${progress}%` }}>
-                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                    </div>
+                            {/* Barra de Progreso */}
+                            <div className="w-full flex items-center gap-3 text-[10px] font-bold text-zinc-500 font-mono tracking-widest mt-1">
+                                <span className="w-8 text-right">{formatTime(audioRef.current?.currentTime || 0)}</span>
+                                <div className="h-1 flex-1 bg-zinc-800 rounded-full relative group cursor-pointer">
+                                    {/* Fondo de barra */}
+                                    <div className="absolute h-full bg-brand rounded-full group-hover:bg-white transition-colors" style={{ width: `${progress}%` }}></div>
+                                    {/* Thumb invisible que aparece en hover */}
+                                    <div className="absolute top-1/2 -translate-y-1/2 right-0 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity" style={{ left: `calc(${progress}% - 6px)` }}></div>
+                                    
                                     <input 
                                         type="range" 
                                         min="0" 
@@ -692,14 +753,15 @@
                                         disabled={!currentTrack}
                                     />
                                 </div>
-                                <span className="w-10">{formatTime(duration)}</span>
+                                <span className="w-8">{formatTime(duration)}</span>
                             </div>
                         </div>
 
-                        <div className="w-1/3 flex justify-end items-center gap-3">
-                            <Icon name="Volume2" size={18} className="text-zinc-400"/>
-                            <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer hover:h-1.5 transition-all">
-                                <div className="w-3/4 h-full bg-zinc-400 hover:bg-celeste-400 transition-colors"></div>
+                        {/* Volumen */}
+                        <div className="w-1/3 flex justify-end items-center gap-3 group">
+                            <GetIcon name="Volume2" size={18} className="text-zinc-400 group-hover:text-white transition-colors"/>
+                            <div className="w-24 h-1 bg-zinc-800 rounded-full overflow-hidden cursor-pointer">
+                                <div className="w-3/4 h-full bg-zinc-500 group-hover:bg-brand transition-colors"></div>
                             </div>
                         </div>
                     </footer>
