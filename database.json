@@ -75,6 +75,9 @@
             ),
             TidalPlay: ({size=24, className}) => (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}><circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="2" fill="none"/><path d="M10 8l6 4-6 4V8z" fill="currentColor"/></svg>
+            ),
+            Wifi: ({size=24, className}) => (
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
             )
         };
         const GetIcon = ({ name, ...props }) => {
@@ -88,13 +91,19 @@
         const github = {
             _clean(str) { return str ? str.trim() : ''; },
 
+            // Codifica la ruta para manejar espacios y caracteres especiales
+            _encodePath(path) {
+                return path.split('/').map(encodeURIComponent).join('/');
+            },
+
             async getFile(token, owner, repo, path) {
                 token = this._clean(token);
                 owner = this._clean(owner);
                 repo = this._clean(repo);
+                const encodedPath = this._encodePath(path);
 
-                const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
-                console.log("Intentando leer:", url); // Debug en consola
+                const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}`;
+                console.log("GitHub API GET:", url);
 
                 const res = await fetch(url, {
                     headers: { 
@@ -103,10 +112,12 @@
                         'Cache-Control': 'no-cache'
                     }
                 });
+                
                 if (!res.ok) {
                     if(res.status === 404) throw new Error('404');
-                    if(res.status === 401) throw new Error('401: Token inválido. Verifica que no haya expirado.');
-                    throw new Error(`Error API (${res.status})`);
+                    if(res.status === 401) throw new Error('401 Unauthorized: Token inválido.');
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(`API Error (${res.status}): ${err.message || 'Desconocido'}`);
                 }
                 return res.json();
             },
@@ -115,6 +126,7 @@
                 token = this._clean(token);
                 owner = this._clean(owner);
                 repo = this._clean(repo);
+                const encodedPath = this._encodePath(path);
 
                 const body = {
                     message: `Update via Web: ${path}`,
@@ -123,7 +135,10 @@
                 };
                 if (sha) body.sha = sha;
 
-                const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+                const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}`;
+                console.log("GitHub API PUT:", url);
+
+                const res = await fetch(url, {
                     method: 'PUT',
                     headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
@@ -131,7 +146,7 @@
                 
                 if (!res.ok) {
                     const errDetail = await res.json().catch(() => ({}));
-                    throw new Error(`Error ${res.status}: ${errDetail.message || 'Fallo en subida'}`);
+                    throw new Error(`Error subiendo (${res.status}): ${errDetail.message || 'Fallo desconocido'}`);
                 }
                 return res.json();
             },
@@ -144,9 +159,19 @@
                     console.log("Archivo existente, sobrescribiendo:", path);
                 } catch (e) {
                     if (e.message !== '404') throw e;
-                    console.log("Creando archivo nuevo:", path);
+                    console.log("Archivo nuevo:", path);
                 }
                 return this.uploadFile(token, owner, repo, path, contentBase64, sha);
+            },
+
+            async testConnection(token, owner, repo) {
+                try {
+                    // Intenta leer el archivo README.md o la raíz para ver si hay acceso
+                    await this.getFile(token, owner, repo, '');
+                    return true;
+                } catch (e) {
+                    throw e;
+                }
             }
         };
 
@@ -190,7 +215,6 @@
             }, []);
 
             const saveConfig = () => {
-                // Limpiamos espacios antes de guardar
                 const cleanConfig = {
                     token: ghConfig.token.trim(),
                     owner: ghConfig.owner.trim(),
@@ -199,6 +223,19 @@
                 setGhConfig(cleanConfig);
                 localStorage.setItem('gh_config', JSON.stringify(cleanConfig));
                 alert("Configuración guardada.");
+            };
+
+            const testConnection = async () => {
+                if (!ghConfig.token || !ghConfig.owner || !ghConfig.repo) return alert("Completa los campos primero.");
+                setUploadStatus('testing');
+                try {
+                    await github.testConnection(ghConfig.token, ghConfig.owner, ghConfig.repo);
+                    alert("¡Conexión Exitosa! ✅\nTus credenciales funcionan.");
+                } catch (e) {
+                    alert(`Error de Conexión ❌:\n${e.message}\n\nVerifica: Usuario, Repo (sin espacios/URL) y Token.`);
+                } finally {
+                    setUploadStatus(null);
+                }
             };
 
             // Player Logic
@@ -249,8 +286,21 @@
 
             const handleAudioFiles = (files) => {
                 const fileList = Array.from(files);
-                const validFiles = fileList.filter(f => f.name.toLowerCase().endsWith('.m4a'));
-                if (validFiles.length !== fileList.length) alert("Solo se permiten archivos .m4a");
+                const validFiles = [];
+                const MAX_SIZE = 95 * 1024 * 1024; // 95MB (Safety margin for 100MB limit)
+
+                fileList.forEach(f => {
+                    if (!f.name.toLowerCase().endsWith('.m4a')) {
+                        console.warn(`Ignorado ${f.name}: No es .m4a`);
+                    } else if (f.size > MAX_SIZE) {
+                        alert(`Archivo "${f.name}" es muy grande (${(f.size/1024/1024).toFixed(1)}MB). El límite es ~95MB.`);
+                    } else {
+                        validFiles.push(f);
+                    }
+                });
+
+                if (validFiles.length !== fileList.length) alert("Se filtraron archivos no válidos (formato incorrecto o tamaño > 95MB).");
+                
                 if (validFiles.length > 0) {
                     const newFiles = validFiles.map(f => ({ file: f, name: f.name.replace(/\.[^/.]+$/, "") }));
                     setUploadForm(prev => ({ ...prev, audios: [...prev.audios, ...newFiles] }));
@@ -261,14 +311,12 @@
                 if (!ghConfig.token || !ghConfig.owner || !ghConfig.repo) return alert("Falta configuración de GitHub.");
                 if (!uploadForm.title || uploadForm.audios.length === 0) return alert("Falta título o audios.");
 
+                // Validaciones previas
+                if (ghConfig.repo.includes('/') || ghConfig.repo.includes('http')) return alert("El campo 'Repositorio' debe ser SOLO el nombre (ej: notebooks).");
+
                 setUploadStatus('uploading');
                 try {
-                    // Validar nombre del repo (no debe ser URL)
-                    if (ghConfig.repo.includes('/') || ghConfig.repo.includes('http')) {
-                        throw new Error("El campo 'Repositorio' debe ser SOLO el nombre (ej: notebooks), no la URL.");
-                    }
-
-                    // 1. Obtener DB actual
+                    // 1. Obtener DB
                     let currentDb = [];
                     let dbSha = null;
                     try {
@@ -277,10 +325,10 @@
                         dbSha = dbData.sha;
                     } catch(e) {
                         if (e.message !== '404') throw e;
-                        console.log("Base de datos no existe, se creará una nueva.");
+                        console.log("Base de datos nueva.");
                     }
                     
-                    const basePath = `audios/${uploadForm.title}`; 
+                    const basePath = `audios/${uploadForm.title}`; // URL Encoding handled inside github object
                     
                     // 2. Subir Imagen
                     let coverPath = null;
@@ -333,12 +381,13 @@
                         currentDb[catIndex].topics.push(newTopic);
                     }
 
-                    // 5. Guardar database.json
+                    // 5. Guardar JSON
+                    // Encode URI Component para caracteres latinos en Base64
                     const jsonContent = btoa(unescape(encodeURIComponent(JSON.stringify(currentDb, null, 2))));
                     await github.uploadFile(ghConfig.token, ghConfig.owner, ghConfig.repo, 'database.json', jsonContent, dbSha);
 
                     setUploadStatus('success');
-                    alert("¡Éxito! Espera 1 minuto y recarga la página.");
+                    alert("¡Subida Exitosa! ✅\nEspera 1-2 minutos para ver los cambios.");
                     setDb(currentDb);
                     setView('home');
                     setUploadForm({ category: '', title: '', description: '', author: '', cover: null, audios: [] });
@@ -347,9 +396,7 @@
                     console.error(e);
                     setUploadStatus('error');
                     let msg = e.message;
-                    if (msg === 'Failed to fetch') {
-                        msg = "Error de conexión (Failed to fetch). \nPosibles causas:\n1. AdBlock bloqueando api.github.com\n2. URL del repositorio mal escrita (asegúrate de poner solo el nombre 'notebooks' en el campo Repositorio).\n3. Problema de red.";
-                    }
+                    if (msg === 'Failed to fetch') msg = "Error de red/bloqueo CORS.\nIntenta desactivar AdBlock o verifica tu conexión.";
                     alert(`ERROR: ${msg}`);
                 }
             };
@@ -400,7 +447,10 @@
                                             <div className="space-y-2"><label className="text-xs font-bold text-zinc-500">Repositorio (Solo nombre)</label><input type="text" value={ghConfig.repo} onChange={e => setGhConfig({...ghConfig, repo: e.target.value})} placeholder="notebooks" className="w-full bg-tidal-dark border border-zinc-700 rounded p-3 text-sm focus:border-brand outline-none" /></div>
                                             <div className="space-y-2 md:col-span-2"><label className="text-xs font-bold text-zinc-500">Token (PAT)</label><input type="password" value={ghConfig.token} onChange={e => setGhConfig({...ghConfig, token: e.target.value})} className="w-full bg-tidal-dark border border-zinc-700 rounded p-3 text-sm focus:border-brand outline-none" /></div>
                                         </div>
-                                        <button onClick={saveConfig} className="mt-6 px-6 py-3 bg-zinc-700 hover:bg-zinc-600 rounded font-bold text-sm uppercase tracking-wider transition-colors">Guardar Credenciales</button>
+                                        <div className="flex gap-4 mt-6">
+                                            <button onClick={saveConfig} className="px-6 py-3 bg-zinc-700 hover:bg-zinc-600 rounded font-bold text-sm uppercase tracking-wider transition-colors">Guardar Credenciales</button>
+                                            <button onClick={testConnection} className="px-6 py-3 border border-brand text-brand hover:bg-brand/10 rounded font-bold text-sm uppercase tracking-wider transition-colors flex items-center gap-2"><GetIcon name="Wifi" size={16}/> Probar Conexión</button>
+                                        </div>
                                     </div>
 
                                     <div className="bg-tidal-panel p-8 rounded-lg shadow-xl">
@@ -417,7 +467,7 @@
                                                 <div className="flex justify-between items-center"><label className="block text-xs font-bold text-zinc-500 uppercase">Audios .m4a</label><input type="file" accept=".m4a,audio/mp4,audio/x-m4a" multiple onChange={e => handleAudioFiles(e.target.files)} className="hidden" id="audio-input" /><label htmlFor="audio-input" className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded text-xs font-bold uppercase text-white transition-colors"><GetIcon name="Plus" size={16} /> Agregar</label></div>
                                                 <div className="space-y-2 bg-tidal-dark rounded p-2 min-h-[100px]">{uploadForm.audios.map((audio, idx) => (<div key={idx} className="flex items-center justify-between bg-tidal-panel p-3 rounded hover:bg-zinc-800 transition-colors group"><div className="flex items-center gap-4 overflow-hidden w-full"><span className="text-zinc-600 font-mono text-xs w-6">{idx + 1}</span><input type="text" value={audio.name} onChange={(e) => { const newAudios = [...uploadForm.audios]; newAudios[idx].name = e.target.value; setUploadForm({...uploadForm, audios: newAudios}); }} className="bg-transparent text-sm font-medium text-zinc-300 outline-none w-full focus:text-brand" /></div><GetIcon name="Trash" size={16} className="text-zinc-600 cursor-pointer hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { const newAudios = uploadForm.audios.filter((_, i) => i !== idx); setUploadForm({...uploadForm, audios: newAudios}); }} /></div>))}</div>
                                             </div>
-                                            <div className="pt-8"><button onClick={handleUpload} disabled={uploadStatus === 'uploading'} className={`w-full py-4 rounded font-bold text-black uppercase tracking-wider transition-all shadow-lg ${uploadStatus === 'uploading' ? 'bg-zinc-600 cursor-wait' : 'bg-brand hover:bg-brand-dark hover:scale-[1.01]'}`}>{uploadStatus === 'uploading' ? 'PROCESANDO...' : 'PUBLICAR CONTENIDO'}</button></div>
+                                            <div className="pt-8"><button onClick={handleUpload} disabled={uploadStatus === 'uploading' || uploadStatus === 'testing'} className={`w-full py-4 rounded font-bold text-black uppercase tracking-wider transition-all shadow-lg ${uploadStatus === 'uploading' ? 'bg-zinc-600 cursor-wait' : 'bg-brand hover:bg-brand-dark hover:scale-[1.01]'}`}>{uploadStatus === 'uploading' ? 'PROCESANDO...' : 'PUBLICAR CONTENIDO'}</button></div>
                                         </div>
                                     </div>
                                 </div>
