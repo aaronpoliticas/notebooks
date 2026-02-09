@@ -9,24 +9,24 @@
         "author": "Aaron Politicas",
         "description": "El duelo que definió la economía moderna.",
         "coverColor": "from-stone-600 to-stone-900",
-        "coverImage": "audios/Hayek%20vs%20Keynes/img.jpg",
+        "coverImage": "audios/Hayek%20vs%20Keynes/img.png",
         "chapters": [
           {
             "id": "hk1",
             "title": "Capítulo 1 - El héroe glamuroso",
-            "url": "audios/Hayek%20vs%20Keynes/Capítulo%201-El%20héroe%20glamuroso.mp3",
+            "url": "audios/Hayek%20vs%20Keynes/Capítulo%201-El%20héroe%20glamuroso.m4a",
             "duration": "--:--"
           },
           {
             "id": "hk2",
             "title": "Capítulo 2 - Fin del imperio",
-            "url": "audios/Hayek%20vs%20Keynes/Capítulo%202-Fin%20del%20imperio.mp3",
+            "url": "audios/Hayek%20vs%20Keynes/Capítulo%202-Fin%20del%20imperio.m4a",
             "duration": "--:--"
           },
           {
             "id": "hk3",
             "title": "Capítulo 3 - Las líneas de combate están atrasadas",
-            "url": "audios/Hayek%20vs%20Keynes/Capítulo%203-Las%20líneas%20de%20combate%20están%20atrasadas.mp3",
+            "url": "audios/Hayek%20vs%20Keynes/Capítulo%203-Las%20líneas%20de%20combate%20están%20atrasadas.m4a",
             "duration": "--:--"
           }
         ]
