@@ -136,19 +136,34 @@
 
         const API_URL = "./database.json";
 
-        // --- GITHUB API ---
+        // --- GITHUB API (CON MANEJO DE ERRORES DE RED) ---
         const github = {
             _clean(str) { return str ? str.trim() : ''; },
             _encodePath(path) { return path.split('/').map(encodeURIComponent).join('/'); },
 
             async getFile(token, owner, repo, path) {
                 const url = `https://api.github.com/repos/${this._clean(owner)}/${this._clean(repo)}/contents/${this._encodePath(path)}`;
-                const res = await fetch(url, { headers: { 'Authorization': `token ${this._clean(token)}`, 'Accept': 'application/vnd.github.v3+json', 'Cache-Control': 'no-cache' }});
-                if (!res.ok) {
-                    if(res.status === 404) throw new Error('404');
-                    throw new Error(`Error API (${res.status})`);
+                
+                try {
+                    const res = await fetch(url, { 
+                        headers: { 
+                            'Authorization': `token ${this._clean(token)}`, 
+                            'Accept': 'application/vnd.github.v3+json', 
+                            'Cache-Control': 'no-cache' 
+                        }
+                    });
+                    
+                    if (!res.ok) {
+                        if(res.status === 404) throw new Error('404');
+                        throw new Error(`Error API (${res.status})`);
+                    }
+                    return res.json();
+                } catch (error) {
+                    if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+                        throw new Error("Conexión bloqueada. Desactiva AdBlock/uBlock o verifica tu internet.");
+                    }
+                    throw error;
                 }
-                return res.json();
             },
             
             async safeUpload(token, owner, repo, path, contentBase64) {
@@ -162,9 +177,22 @@
                 if (sha) body.sha = sha;
 
                 const url = `https://api.github.com/repos/${this._clean(owner)}/${this._clean(repo)}/contents/${this._encodePath(path)}`;
-                const res = await fetch(url, { method: 'PUT', headers: { 'Authorization': `token ${this._clean(token)}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                if (!res.ok) throw new Error(`Error subiendo (${res.status})`);
-                return res.json();
+                
+                try {
+                    const res = await fetch(url, { 
+                        method: 'PUT', 
+                        headers: { 'Authorization': `token ${this._clean(token)}`, 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify(body) 
+                    });
+                    
+                    if (!res.ok) throw new Error(`Error subiendo (${res.status})`);
+                    return res.json();
+                } catch (error) {
+                    if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+                        throw new Error("Conexión bloqueada al subir. Desactiva AdBlock/uBlock o verifica tu internet.");
+                    }
+                    throw error;
+                }
             }
         };
 
@@ -258,6 +286,30 @@
                 if (nextIdx >= activeTopic.chapters.length) nextIdx = 0;
                 if (nextIdx < 0) nextIdx = activeTopic.chapters.length - 1;
                 playTrack(activeTopic.chapters[nextIdx], activeTopic);
+            };
+
+            const handleAudioFiles = (files) => {
+                const fileList = Array.from(files);
+                const validFiles = [];
+                // Límite de seguridad: 30MB para evitar cuelgues del navegador al convertir a Base64
+                const MAX_SIZE = 30 * 1024 * 1024; 
+
+                fileList.forEach(f => {
+                    if (f.name.toLowerCase().endsWith('.m4a')) {
+                        if (f.size <= MAX_SIZE) {
+                            validFiles.push(f);
+                        } else {
+                            alert(`El archivo "${f.name}" pesa más de 30MB y podría fallar. Ignorado.`);
+                        }
+                    }
+                });
+
+                if (validFiles.length > 0) {
+                    const newFiles = validFiles.map(f => ({ file: f, name: f.name.replace(/\.[^/.]+$/, "") }));
+                    setUploadForm(prev => ({ ...prev, audios: [...prev.audios, ...newFiles] }));
+                } else if (fileList.length > 0) {
+                    alert("No se añadieron archivos. Solo se permiten .m4a menores a 30MB.");
+                }
             };
 
             const handleUpload = async () => {
@@ -415,11 +467,7 @@
                                                 <div className="flex justify-between items-center mb-2">
                                                     <label className="text-xs font-bold text-sp-text uppercase">Audios (.m4a)</label>
                                                     <label htmlFor="audio-input" className="cursor-pointer flex items-center gap-1 text-sm font-bold hover:text-white text-sp-text"><Icons.Plus size={16} /> Agregar</label>
-                                                    <input type="file" accept=".m4a,audio/mp4,audio/x-m4a" multiple onChange={e => {
-                                                        const files = Array.from(e.target.files).filter(f => f.name.toLowerCase().endsWith('.m4a'));
-                                                        if (files.length !== e.target.files.length) alert("Solo .m4a permitidos");
-                                                        setUploadForm(prev => ({ ...prev, audios: [...prev.audios, ...files.map(f => ({ file: f, name: f.name.replace(/\.[^/.]+$/, "") }))] }));
-                                                    }} className="hidden" id="audio-input" />
+                                                    <input type="file" accept=".m4a,audio/mp4,audio/x-m4a" multiple onChange={e => handleAudioFiles(e.target.files)} className="hidden" id="audio-input" />
                                                 </div>
                                                 <div className="space-y-1">
                                                     {uploadForm.audios.map((audio, idx) => (
